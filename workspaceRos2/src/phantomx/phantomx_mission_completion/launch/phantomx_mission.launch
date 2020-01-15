@@ -4,5 +4,6 @@
     <include file="$(find phantomx_gazebo)/launch/phantomx_gazebo.launch"/>
 
     <node name="phantomx_controller" pkg="phantomx_mission_completion" type="controller.py" />
+    <node name="rviz" pkg="rviz" type="rviz" />
 
 </launch>
