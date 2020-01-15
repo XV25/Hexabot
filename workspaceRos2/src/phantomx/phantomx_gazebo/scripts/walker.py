@@ -127,7 +127,7 @@ class WFunc:
 
     def show(self):
         for j in self.pfn.keys():
-            print j, 'p', self.pfn[j], 'a', self.afn[j]
+            print( j, 'p', self.pfn[j], 'a', self.afn[j])
 
     def apply_velocity(self, angles, velocity, phase, x):
         pass
@@ -216,7 +216,7 @@ class Walker:
 
     def _cb_cmd_vel(self, msg):
         """Catches cmd_vel and update walker speed"""
-        print 'cmdvel', msg
+        print( 'cmdvel', msg)
         vx = msg.linear.x
         vy = msg.linear.y
         vt = msg.angular.z

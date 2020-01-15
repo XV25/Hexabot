@@ -8,8 +8,17 @@ import statistics
 from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import Twist
 
+#import pcl_helper as ph
+
+
 inf = float('inf')
 vel_msg = Twist()
+
+
+def getLeftKinect(ros_pc):
+    print("ok")
+    return(None)
+
 
 def lidarRead(data):
     """
@@ -74,6 +83,7 @@ if __name__ == '__main__':
     rospy.sleep(1)
     scan = rospy.Subscriber("/phantomx/lidar", LaserScan, lidarRead)
     cmd = rospy.Publisher("/phantomx/cmd_vel",Twist, queue_size=5)
+    #left_kinect_pc = rospy.Subscriber("/phantomx/camera_left/depth/points", PointCloud2, getLeftKinect)
     vel_msg.linear.x = 0.6
     error = 0
 
