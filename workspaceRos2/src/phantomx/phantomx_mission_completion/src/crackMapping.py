@@ -25,13 +25,15 @@ if __name__ == "__main__":
     rospy.sleep(1)
     # scan = rospy.Subscriber("/phantomx/", LaserScan, lidarRead)
     # cmd = rospy.Publisher("/phantomx/cmd_vel",Twist, queue_size=5)
-    while not rospy.is_shutdown():
-        rospy.sleep(1)
+    #while not rospy.is_shutdown():
+    #    rospy.sleep(1)
     cameraModel = image_geometry.PinholeCameraModel()
     p_world = PointStamped()
-    # p_world.header.seq = self.camera_image.header.seq
-    p_world.header.stamp = stamp
-    p_world.header.frame_id = '/world'
+    stamp = rospy.Time()
+    #p_world.header.seq = self.camera_image.header.seq
+    #p_world.header.stamp = stamp
+    #p_world.header.frame_id = '/world'
+    p_3d = (0,0,0)
     p_world.point.x = p_3d[0]
     p_world.point.y = p_3d[1]
     p_world.point.z = p_3d[2]
