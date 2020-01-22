@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     plt.figure()
     plt.imshow(img,cmap="gray")
-    crack_dist=isCrack(img,dist)
+    crack_dist=isCrack(img,img)
     if crack_dist is not None:
         print("Crack detection")
         plt.figure()

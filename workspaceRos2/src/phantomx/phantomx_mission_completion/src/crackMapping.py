@@ -28,19 +28,27 @@ if __name__ == "__main__":
     #while not rospy.is_shutdown():
     #    rospy.sleep(1)
     cameraModel = image_geometry.PinholeCameraModel()
-    p_world = PointStamped()
+    p_pix = PointStamped()
     stamp = rospy.Time()
+    
+    # on veut : pixel vers 3d
+    
     #p_world.header.seq = self.camera_image.header.seq
     #p_world.header.stamp = stamp
     #p_world.header.frame_id = '/world'
-    p_3d = (0,0,0)
-    p_world.point.x = p_3d[0]
-    p_world.point.y = p_3d[1]
-    p_world.point.z = p_3d[2]
+    pix = (0,0,0)
+    p_pix.point.x = pix[0]
+    p_pix.point.y = pix[1]
+    p_pix.point.z = pix[2]
     
-    listener = tf.TransformListener()
-    listener.waitForTransform('/base_link', '/world', stamp, rospy.Duration(1.0))
-    p_camera = listener.transformPoint('/base_link', p_world)
+    # listener = tf.TransformListener()
+    # listener.waitForTransform('/camera_left', '/base_link', stamp, rospy.Duration(1.0))
+    # transform de camera vers base
+    # p_camera = listener.transformPoint('/camera_left', p_world)
+    
+    cameraModel.fromCameraInfo(camera_info) # récup du topic
+
+
 
 #     # The navigation frame has X pointing forward, Y left and Z up, whereas the
 # # vision frame has X pointing right, Y down and Z forward; hence the need to
