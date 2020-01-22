@@ -22,11 +22,16 @@ class CrackMap():
     
     # On definit les fonctiond de callback pour chaque topic : elles vont stocker les images collectees dans les variables de classe correspondantes
        
-    def callbackCIFrontDepth(self,img):
-	    self.CIFrontDepth = img
+    def callbackDepthPic(self,img):
+        self.depthPic = img
+    
+    def callbackCIFrontDepth(self,cami):
+	    self.CIFrontDepth = cami
+        # faire unregister de subscriber ap recup
+        # ou rospy.waitformessage (recup un mess puis arrête)
 	    
-    def callbackCIFrontColor(self,img):
-	    self.CIFrontColor = img
+    def callbackCIFrontColor(self,cami):
+	    self.CIFrontColor = cami
 	     
         
     def fromPix2camRef(self,pixD):
@@ -71,24 +76,80 @@ class CrackMap():
         
         # # normally, norm(p_check - pixD) < 1e-10
         
-        return(p_real_3D)
+        return p_real_3D
+    
+    def fromCamRef2caveRef(self,point):
+        
+        p_cam = PointStamped()
+        #p_cam.header.seq = self.depthPic.header.seq
+        p_cam.header.seq = self.CIFrontDepth.header.seq
+        p_cam.header.stamp = rospy.Time(0)
+        p_cam.header.frame_id = '/camera_front'
+        p_cam.point.x = pr3d[0]
+        p_cam.point.y = pr3d[1]
+        p_cam.point.z = pr3d[2]
+
+        print(p_cam)
+        listener = tf.TransformListener()
+        listener.waitForTransform('/camera_front', '/map', stamp, rospy.Duration(1.0))
+        p_cave = listener.transformPoint('/map', p_cam)
+        
+        print(p_cave)
+        
+        return p_cave
+    
+
+    def allPix2world(self):
+        current_depthPic = self.depthPic
+        
+        bin_current_depthPic = current_depthPic > 0
+        
+        # barycenter only        
+        allpts = []
+        contours, hierarchy = cv2.findContours(bin_current_depthPic, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) #[1:]
+        
+        for i in range (len(contours)):
+            cnt = contours[i]
+            M = cv2.moments(cnt)
+            cx = int(M['m10']/(M['m00']+1*10**-5))
+            cy = int(M['m01']/(M['m00']+1*10**-5))
+            depth = current_depthPic[cx,cy]
+            bary_fis = self.fromCamRef2caveRef(self.fromPix2camRef( (cx,cy,depth) ) )
+            allpts.append(bary_fis)
+                
+        return(allpts)
     
     
+    # def change
+    
+    def checkSameCracks(self):
+        
+        return()
+        
+    
+    def displayCracks(self,allpts):
+        
+        
+        
+        return()
     
     
     def __init__(self,rate):
         
     # On cree les variables qui vont stocker les images 
         
+        
         self.CIFrontDepth = None
         self.CIFrontColor = None
-
+        self.depthPic = None
+        self.allCracksInCave = []
+        #self.current_depthPic = None
+        
     # On cree les subscribers pour chaque image : front, left et right, en couleur et profondeur
     
         rospy.Subscriber("/phantomx/camera_front/depth/camera_info", CamInfoMSG,self.callbackCIFrontDepth)
         rospy.Subscriber("/phantomx/camera_front/color/camera_info", CamInfoMSG,self.callbackCIFrontColor)
-        
-      
+        rospy.Subscriber("/front_depth", ImageMSG,self.callbackDepthPic)
 
     # On cree les publisher de ces memes images sur des topics differents (avec un rate qu on peut choisir)
     
@@ -112,7 +173,7 @@ class CrackMap():
         #p_world.header.seq = self.camera_image.header.seq
         #p_world.header.stamp = stamp
         #p_world.header.frame_id = '/world'
-        pix = np.array([0,0.0,1.0]).T
+        pix = np.array([200,300.0,1.0]).T
         # p_pix.point.x = pix[0]
         # p_pix.point.y = pix[1]
         # p_pix.point.z = pix[2]
@@ -128,13 +189,12 @@ class CrackMap():
         
         print(self.R_rpic2rcam)
         
+        
+        
+        
+        
         pr3d = self.fromPix2camRef(pix)
-        
-        
-        
-        
-        
-    
+        p_world = self.fromCamRef2caveRef(pr3d)
     
     # cas de passage de world (3d) vers pixel (2d)
     
