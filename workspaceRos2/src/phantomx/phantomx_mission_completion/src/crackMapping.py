@@ -43,13 +43,19 @@ if __name__ == "__main__":
     
     # listener = tf.TransformListener()
     # listener.waitForTransform('/camera_left', '/base_link', stamp, rospy.Duration(1.0))
-    # transform de camera vers base
+    # # transform de camera vers base
     # p_camera = listener.transformPoint('/camera_left', p_world)
     
+    
+    
     cameraModel.fromCameraInfo(camera_info) # récup du topic
+    
+    
 
 
+# cas de passage de world (3d) vers pixel (2d)
 
+# passage de réf camera à ref image
 #     # The navigation frame has X pointing forward, Y left and Z up, whereas the
 # # vision frame has X pointing right, Y down and Z forward; hence the need to
 # # reassign axes here.
