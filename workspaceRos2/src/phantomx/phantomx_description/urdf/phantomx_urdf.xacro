@@ -118,7 +118,7 @@
      <pointCloudTopicName>/phantomx/camera_${suffix}/depth/points</pointCloudTopicName>
      <frameName>camera_${suffix}</frameName>
      <pointCloudCutoff>0.1</pointCloudCutoff>
-     <pointCloudCutoffMax>2.0</pointCloudCutoffMax>
+     <pointCloudCutoffMax>10.0</pointCloudCutoffMax>
      <distortionK1>0</distortionK1>
      <distortionK2>0</distortionK2>
      <distortionK3>0</distortionK3>
@@ -463,7 +463,7 @@
                 <outer_angle>2</outer_angle>
                 <falloff>1</falloff>
             </spot>
-            <direction>0 0 -1</direction> 
+            <direction>0 0 -1</direction>
         </light>
         <light name='light_source_front' type='spot'>
             <pose frame=''>0.1 0 0.03 0 -2. 0</pose>
@@ -479,7 +479,7 @@
                 <outer_angle>2</outer_angle>
                 <falloff>1</falloff>
             </spot>
-            <direction>0 0 -1</direction> 
+            <direction>0 0 -1</direction>
         </light>
         <plugin name='light_control' filename='libFlashLightPlugin.so'>
             <enable>true</enable>
@@ -503,7 +503,7 @@
             </light>
         </plugin>
         <selfCollide>false</selfCollide>
-    </gazebo> 
+    </gazebo>
 
 
       <gazebo reference="lidar_link">
