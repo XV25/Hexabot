@@ -13,26 +13,40 @@ import image_geometry
 import tf2_ros as tf2
 from tf2_geometry_msgs import PointStamped
 import time
-from visualization_msgs.msg import Marker
-from visualization_msgs.msg import MarkerArray
-
-# if__name__ == "__main__":
-    
 
 from visualization_msgs.msg import Marker, MarkerArray
 
 
-#     pass
-
-
 class CrackMap():
+    """
     
-    # On definit les fonctions de callback pour chaque topic : elles vont stocker les images collectees dans les variables de classe correspondantes
+    Class associated with all the operations linked to the detection and the 
+    positioning in the reference frame of the cave of the crack barycenters.
+    Subscribes to the topic "/phantomx/crack_image", which returns depth pictures
+    of the detected cracks on pictures (when a crack is detected); publish the 
+    MarkerArray topic "/phantomx/crack_markers", containing the markers associated
+    with all the barycenter of the cracks detected since the beginning of the simulation.
+    
+    """
+    
     def callbackDepthPic(self,img):
+        """
+        Callback : take the ROS message returned by /phantomx/crack_image (Image). Save the ROS message
+        and the depth picture into this message.
+
+        ------
+        Input : 
+            
+            img : Image Message : ROS message containing the last message published by 
+            the topic /phantomx/crack_image (a depth picture containing the depth of 
+            all the detected cracks on a picture).
+            
+                
+        """
         self.depthMsg = img
         self.depthPic = self.bridge.imgmsg_to_cv2(img)
         self.PicID += 1
-        return(None)
+        return None
 
 	    
     def callbackCIFrontColor(self,cami):
@@ -41,15 +55,15 @@ class CrackMap():
         unsubscribe from the concerned topic.
 
         ------
-        Parameters : 
+        Input : 
             
             cami : Camera Info Message : ROS message containing all the intrinsic
-            parameters of the camera (fx, fy, ...)
+            parameters of the camera (fx, fy, distortion coefficients ...)
                 
         """
         self.CIFrontColor = cami
         self.CIPtopic.unregister()
-        return(None)
+        return None
 
         
     def fromPix2camRef(self,pixD, check_pix = False):
@@ -58,7 +72,7 @@ class CrackMap():
         sensor frame.
         
         ------
-        Parameters : 
+        Input : 
             
             pixD : the coordinates of the pixel on the picture frame,
             and the depth of the pixel : (u,v,depth of pix)
@@ -118,7 +132,7 @@ class CrackMap():
         Express the coordinates of a pixel on the camera frame into the cave frame.      
 
         ------
-        Parameters : 
+        Input : 
             
            pr3d : the coordinates of the pixel on the camera sensor frame : 
            (depth of pix = X, Y, Z)
@@ -152,34 +166,35 @@ class CrackMap():
 
     def allPix2world(self):
         """
-        
+        Take all the pixels corresponding to separates crack on a picture, and returns the 
+        barycenter of those cracks.
 
         Returns
         -------
-        None.
+        
+            allpts : list, containing the barycenter of all the separate cracks on the
+            current picture
 
         """
+        allpts = []
+        
         current_depthPic = self.depthPic.copy()
         current_depthMsg = self.depthMsg
         self.cur_PicID = self.PicID
         
-        # print(current_depthPic)
-        # print( current_depthPic.shape )
-        
+        # binarize the current depth picture (in order to select the contours of the cracks
+        # on the picture)
         bin_current_depthPic = cv2.threshold(current_depthPic,
                 1e-5, 255,
                 cv2.THRESH_BINARY)[1]
-        # print("Got a pic!")
-        # print(bin_current_depthPic)
-
-        # barycenter only        
-        allpts = []
         
         tst = np.uint8( bin_current_depthPic.copy() )
         
         contours, hierarchy = cv2.findContours(tst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) #[1:]
         
         for i in range (len(contours)):
+            # for each contour corresponding to a crack, return the barycenter of this crack, and express 
+            # it into the cave frame
             cnt = contours[i]
             M = cv2.moments(cnt)
             cx = int(M['m10']/(M['m00']+1*10**-5))
@@ -187,15 +202,28 @@ class CrackMap():
             depth = current_depthPic[cy,cx]
             bary_fis = self.fromCamRef2caveRef(self.fromPix2camRef( (cx,cy,depth) ), current_depthMsg )
             if(bary_fis.point.z > 0.15):   
+                # odd condition, added to remove problems related to frame changes 
+                # (indicates points related to cracks at the robot position)
                 allpts.append(bary_fis)
-                # pts bugs seems to be associated w/ bary_fis.point.z = 0.142
-        return(allpts)
+        return allpts
     
-    
-    # def change
-    
-    def checkSameCracks(self,allpts, dist = 0.5, min_dist = 0.5):
-        
+    def checkSameCracks(self,allpts, dist = 0.5):
+        """
+        Check if the new crack barycenters detected are not too close of the last
+        crack barycenters. Suppress the new crack barycenters that are too much close
+        of the last ones (determined by dist), add the other cracks to the list containing 
+        all the cracks (allCracksInCave).
+
+        ------
+        Input : 
+            
+            allpts : list, containing the barycenter of all the separate cracks on the
+            current picture
+            
+            dist : minimal 3D distance between the barycenter of the cracks.
+                
+        """
+
         for i in range(len(self.allCracksInCave)):
             bary_fis = self.allCracksInCave[i]
             x,y,z = bary_fis.point.x, bary_fis.point.y,bary_fis.point.z
@@ -209,20 +237,30 @@ class CrackMap():
                 if ( np.linalg.norm(nPt-Pt) < dist):
                     # suppress the newest ponits if distance between pts really small
                     del(allpts[j])
-                elif (np.linalg.norm(nPt)<min_dist):
-                    del(allpts[j])
 
                 j+= 1
                 
         self.allCracksInCave += allpts     
-        return(None)
+        return None
         
     
-    def displayCracks(self, display_console = True):
-        """" display the current cracks """
+    def displayCracks(self, display_console = False):
+        """
+        Display all the barycenter of the cracks detected, into the topic 
+        /phantomx/crack_markers and also in the terminal (chosen by the user)
+
+        ------
+        Input : 
+            
+            display_console : bool, indicates if the coordinates of the 
+            markers associated to the barycenters must be published into the
+            terminal
+
+        """
         
         if (display_console):
             if (self.nb_cracks!= len(self.allCracksInCave)):
+                # Only display into the terminal if new cracks have been found
                 print("---------------- %% Cracks found %% -----------------\n")
                 
                 for i in range(len(self.allCracksInCave)):
@@ -230,7 +268,6 @@ class CrackMap():
                     print(self.allCracksInCave[i])
                     print("\n")
                     
-                    #marker = self.allCracksInCave[i]
                 self.nb_cracks = len(self.allCracksInCave)
         
         if (True):
@@ -260,32 +297,82 @@ class CrackMap():
                 marker.lifetime = rospy.Duration(1)
                 liste_marker.append(marker)
                 
-            
-             # Marker(header=Header(stamp=rospy.Time.now(),
-             #                                  frame_id=self.map_frame),
-             #                          pose=particle.as_pose(),
-             #                          type=0,
-             #                          scale=Vector3(x=particle.w*2,y=particle.w*1,z=particle.w*5),
-             #                          id=index,
-             #                          color=ColorRGBA(r=1,a=1))
+
             self.markerPub.publish(MarkerArray(markers=liste_marker))
             
-        return(None)
+        return None
     
     def checkCracks(self):
+        """
+        Take the barycenter of all the cracks detected on the current depth 
+        picture, and check if the new crack barycenters detected are not too close of the last
+        crack barycenters.
+        After all the treatments, check if a new ROS depth message has not been 
+        recorded by the programm. If it's not the case, suppress the ROS depth
+        message that has just been processed.
+
+        """
         allpts = self.allPix2world()
-        self.checkSameCracks(allpts,self.dist_center_cracks,self.dist_close_cracks)
+        self.checkSameCracks(allpts,self.dist_center_cracks)
         if (self.cur_PicID == self.PicID):
             # during all the treatments, no more pics were sent --> we can suppress the currently saved pic
             self.depthMsg = None
             self.depthPic = None
-        return(None)
+        return None
         
     
     
     def __init__(self,rate):
+        """
         
-    # On cree les variables qui vont stocker les images 
+        Constructor of the CrackMap class. 
+        
+        
+        ------
+        
+        Input : 
+            
+            rate : the rate associated to rospy.
+        
+        Parameters : 
+            
+            PicID : int, associated with the ID of the last depth message
+            recorded.
+            
+            cur_PicID : int, associated with the ID of the currently processed
+            depth message (by the checkCracks function)
+            
+            CIFrontColor : Camera Info object, containing all the intrinsic parameters
+            of the camera.
+            
+            depthMsg : Image Message : ROS message containing the last message published by 
+            the topic /phantomx/crack_image (a depth picture containing the depth of 
+            all the detected cracks on a picture).
+            
+            depthPic : OpenCV Matrix, containing the last depth picture published by
+            the topic /phantomx/crack_image.
+            
+            allCracksInCave : list, containing all the cracks detected since the beginning
+            of the simulation.
+            
+            nb_cracks : int, containing the number of cracks detected since the beginning of the
+            simulation.
+            
+            dist_center_cracks : float, indicating the minimum 3D distance between the barycenters
+            of the cracks.
+            
+            R_rpic2rcam : rotationnal matrix from the picture frame to the camera sensor frame
+            
+            R_rcam2rpic : rotationnal matrix from the camera sensor frame to the picture frame
+            
+            buffer : BufferInterface object, stores the last transformation matrices between frames for
+            a certain time (60 seconds here).
+            
+            listener : TransformListener object, used to express the coordinates of a pixel from the 
+            camera sensor frame into the cave frame.
+            
+        """
+ 
         self.bridge = CvBridge()
         self.PicID = 0
         self.cur_PicID = 0
@@ -295,108 +382,39 @@ class CrackMap():
         self.allCracksInCave = []
         self.nb_cracks = len(self.allCracksInCave)
         
-        self.dist_center_cracks = 3.0
-        self.dist_close_cracks = 4.0
-        #self.current_depthPic = None
+        self.dist_center_cracks = 0.5
         
         self.buffer = tf2.Buffer(rospy.Duration(60)) # prend 60s de tf 
         self.listener = tf2.TransformListener(self.buffer)
         
-    # On cree les subscribers pour chaque image : front, left et right, en couleur et profondeur
     
         self.CIPtopic = rospy.Subscriber("/phantomx/camera_front/color/camera_info", CamInfoMSG,self.callbackCIFrontColor)
         rospy.Subscriber("/phantomx/crack_image", ImageMSG,self.callbackDepthPic)
 
-    # On cree les publisher de ces memes images sur des topics differents (avec un rate qu on peut choisir)
-    
+
         self.rate = rospy.Rate(rate)
         
         self.markerPub = rospy.Publisher('/phantomx/crack_markers', MarkerArray, queue_size=10)
-        
-        # self.pubFrontDepth =  rospy.Publisher('/front_depth',Image,queue_size=10)
-        # self.pubFrontColor =  rospy.Publisher('/front_color',Image,queue_size=10)
-        # self.pubLeftDepth =  rospy.Publisher('/left_depth',Image,queue_size=10)
-        # self.pubLeftColor =  rospy.Publisher('/left_color',Image,queue_size=10)
-        # self.pubRightDepth =  rospy.Publisher('/right_depth',Image,queue_size=10)
-        # self.pubRightColor =  rospy.Publisher('/right_color',Image,queue_size=10)
-        
+
         time.sleep(3)
         
         self.cameraModel = image_geometry.PinholeCameraModel()
-        # p_pix = PointStamped()
-        # stamp = rospy.Time()
-        
+
         self.R_rcam2rpic = np.array([[0.0,-1.0,0.0],[0.,0.,-1.0],[1.0,0.0,0.0]])
         self.R_rpic2rcam = np.linalg.inv(self.R_rcam2rpic)
         
-        # on veut : pixel vers 3d
-    
-        #p_world.header.seq = self.camera_image.header.seq
-        #p_world.header.stamp = stamp
-        #p_world.header.frame_id = '/world'
-        #pix = np.array([200,300.0,1.0]).T
-        # p_pix.point.x = pix[0]
-        # p_pix.point.y = pix[1]
-        # p_pix.point.z = pix[2]imgFrontDepth
-        
-        
-        # listener = tf.TransformListener()
-        # listener.waitForTransform('/camera_left', '/base_link', stamp, rospy.Duration(1.0))
-        # # transform de camera vers base
-        # p_camera = listener.transformPoint('/camera_left', p_world)
-
-        
-        #print(self.R_rpic2rcam)
-        
-        
-        
         while not rospy.is_shutdown():
             if (self.depthMsg is not None):
+                # means that a new depth picture has been recorded by the programm.
                 self.checkCracks()
             self.displayCracks()
             self.rate.sleep()
+            rospy.spin()
         
-        
-        
-        # pr3d = self.fromPix2camRef(pix)
-        # p_world = self.fromCamRef2caveRef(pr3d)
-    
-    # cas de passage de world (3d) vers pixel (2d)
-    
-    # passage de réf camera à ref image
-    #     # The navigation frame has X pointing forward, Y left and Z up, whereas the
-    # # vision frame has X pointing right, Y down and Z forward; hence the need to
-    # # reassign axes here.
-        
-        # (x,y,z) : ref picture
-        # p_cam.point : ref camera
-        
-
-        
-        
-        
-    #     x = -p_camera.point.y
-    #     y = -p_camera.point.z
-    #     z = p_camera.point.x
-    
-        # camera = image_geometry.PinholeCameraModel()
-        # camera.fromCameraInfo(camera_info)
-    #     p_image = camera.project3dToPixel((x, y, z))
-    
-            
-            
-        #     self.publisherGeneral()     
-        # # On spin
-        #     rospy.spin()
-        
-
-
-
+        return None
 
 
 if __name__ == "__main__":
     rospy.init_node("crackMapping", anonymous=False, log_level=rospy.DEBUG)
     cm = CrackMap(1)
-    # scan = rospy.Subscriber("/phantomx/", LaserScan, lidarRead)
-    
 
