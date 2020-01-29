@@ -1,5 +1,11 @@
 #!/usr/bin/env python
-# -*- coding: utf-8
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jan 29 10:50:57 2020
+
+@author: ehnla
+"""
+
 
 from crackDetection import *
 
@@ -18,16 +24,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 
 class CrackMap():
-    """
-    
-    Class associated with all the operations linked to the detection and the 
-    positioning in the reference frame of the cave of the crack barycenters.
-    Subscribes to the topic "/phantomx/crack_image", which returns depth pictures
-    of the detected cracks on pictures (when a crack is detected); publish the 
-    MarkerArray topic "/phantomx/crack_markers", containing the markers associated
-    with all the barycenter of the cracks detected since the beginning of the simulation.
-    
-    """
+
     
     def callbackDepthPic(self,img):
         """
@@ -87,30 +84,25 @@ class CrackMap():
                 
         """
         
-         # récup du topic
+        # take camera_info 
         self.cameraModel.fromCameraInfo(self.CIFrontColor)
         
-        # enlève distorsion du pixel
+        # remove distortion 
         pix_rec = self.cameraModel.rectifyPoint( (pixD[0],pixD[1]) )
-        #print(pix_rec)
-        
-        # donne le vecteur unitaire entre le point et le centre de la caméra
-        # (passant par un rayon laser non fixé), dans le ref de l'image
+
+        # gives the unit vector between the point and the centre of the camera
+        # (passing through an unfixed laser beam), in the image reflex
         p_3D = self.cameraModel.projectPixelTo3dRay((pix_rec[0],pix_rec[1]))
         
-
-        # passage de ref image à ref camera pour vecteur unitaire
+        # change from image frame to camera frame for unit vector
         p_3D = np.matmul(self.R_rpic2rcam,p_3D)
         
-
-        # associe un rayon laser au vecteur unitaire grâce à l'information 
-        # de profondeur (pix[2])
+        # Associates a laser beam with the unit vector using the information 
+        # depth (pix[2])
         Mp3d = np.array([p_3D[0],p_3D[1],p_3D[2]]).T
         
         p_real_3D = (pixD[2]/p_3D[0])*Mp3d
 
-        # # to check if transformation is ok
-        
         if (check_pix):
         
             print(p_real_3D)
@@ -190,8 +182,11 @@ class CrackMap():
         
         tst = np.uint8( bin_current_depthPic.copy() )
         
-        contours, hierarchy = cv2.findContours(tst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) #[1:]
-        
+        try:
+            contours, hierarchy = cv2.findContours(tst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        except:
+            contours, hierarchy = cv2.findContours(tst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[1:]
+
         for i in range (len(contours)):
             # for each contour corresponding to a crack, return the barycenter of this crack, and express 
             # it into the cave frame
@@ -204,6 +199,7 @@ class CrackMap():
             if(bary_fis.point.z > 0.15):   
                 # odd condition, added to remove problems related to frame changes 
                 # (indicates points related to cracks at the robot position)
+ 
                 allpts.append(bary_fis)
         return allpts
     
@@ -223,7 +219,6 @@ class CrackMap():
             dist : minimal 3D distance between the barycenter of the cracks.
                 
         """
-
         for i in range(len(self.allCracksInCave)):
             bary_fis = self.allCracksInCave[i]
             x,y,z = bary_fis.point.x, bary_fis.point.y,bary_fis.point.z
@@ -235,7 +230,7 @@ class CrackMap():
                 
                 nPt = np.array([[nx],[ny],[nz]])
                 if ( np.linalg.norm(nPt-Pt) < dist):
-                    # suppress the newest ponits if distance between pts really small
+                    # suppress the new points if distance between pts really small
                     del(allpts[j])
 
                 j+= 1
@@ -315,7 +310,7 @@ class CrackMap():
         allpts = self.allPix2world()
         self.checkSameCracks(allpts,self.dist_center_cracks)
         if (self.cur_PicID == self.PicID):
-            # during all the treatments, no more pics were sent --> we can suppress the currently saved pic
+
             self.depthMsg = None
             self.depthPic = None
         return None
@@ -323,6 +318,7 @@ class CrackMap():
     
     
     def __init__(self,rate):
+
         """
         
         Constructor of the CrackMap class. 
@@ -372,7 +368,7 @@ class CrackMap():
             camera sensor frame into the cave frame.
             
         """
- 
+        
         self.bridge = CvBridge()
         self.PicID = 0
         self.cur_PicID = 0
@@ -405,11 +401,10 @@ class CrackMap():
         
         while not rospy.is_shutdown():
             if (self.depthMsg is not None):
-                # means that a new depth picture has been recorded by the programm.
+
                 self.checkCracks()
             self.displayCracks()
             self.rate.sleep()
-            rospy.spin()
         
         return None
 
