@@ -33,24 +33,44 @@ class CrackMap():
         self.depthPic = self.bridge.imgmsg_to_cv2(img)
         self.PicID += 1
         return(None)
-    
-    def callbackCIFrontDepth(self,cami):
-        self.CIFrontDepth = cami
-        self.CIDtopic.unregister()
-        return(None)
-        # faire unregister de subscriber ap recup
-        # ou rospy.waitformessage (recup un mess puis arrête)
-        
+
 	    
     def callbackCIFrontColor(self,cami):
+        """
+        Temporary callback : only take once the camera_info matrix, then
+        unsubscribe from the concerned topic.
+
+        ------
+        Parameters : 
+            
+            cami : Camera Info Message : ROS message containing all the intrinsic
+            parameters of the camera (fx, fy, ...)
+                
+        """
         self.CIFrontColor = cami
         self.CIPtopic.unregister()
         return(None)
 
         
-    def fromPix2camRef(self,pixD):
+    def fromPix2camRef(self,pixD, check_pix = False):
         """
-        pixD : (u,v,depth of pix)
+        Express the coordinates of a pixel on the picture frame into the camera
+        sensor frame.
+        
+        ------
+        Parameters : 
+            
+            pixD : the coordinates of the pixel on the picture frame,
+            and the depth of the pixel : (u,v,depth of pix)
+            
+            check_pix : bool : to check if the transformation picture frame --> sensor frame
+            is correct (by checking the transformation sensor frame --> picture frame)
+            
+        Return : 
+            
+            p_real_3d : the coordinates of the pixel on the camera sensor frame : 
+            (depth of pix = X, Y, Z)
+                
         """
         
          # récup du topic
@@ -64,13 +84,11 @@ class CrackMap():
         # (passant par un rayon laser non fixé), dans le ref de l'image
         p_3D = self.cameraModel.projectPixelTo3dRay((pix_rec[0],pix_rec[1]))
         
-        #print(p_3D)
-        
+
         # passage de ref image à ref camera pour vecteur unitaire
         p_3D = np.matmul(self.R_rpic2rcam,p_3D)
         
-        #print(p_3D)
-        
+
         # associe un rayon laser au vecteur unitaire grâce à l'information 
         # de profondeur (pix[2])
         Mp3d = np.array([p_3D[0],p_3D[1],p_3D[2]]).T
@@ -78,24 +96,44 @@ class CrackMap():
         p_real_3D = (pixD[2]/p_3D[0])*Mp3d
 
         # # to check if transformation is ok
-        #print(p_real_3D)
         
-        # take 3d point in camera ref, turn into picture ref
-        # p_c_3D = np.matmul(self.R_rcam2rpic,p_real_3D)
+        if (check_pix):
         
-        # # take 3d point in picture ref in 2D
-        # p_check = self.cameraModel.project3dToPixel(p_c_3D)
-        
-        # print("p_check : ", p_check) 
-        
-        # # normally, norm(p_check - pixD) < 1e-10
-        
+            print(p_real_3D)
+            
+            # take 3d point in camera ref, turn into picture ref
+            
+            p_c_3D = np.matmul(self.R_rcam2rpic,p_real_3D)
+            
+            # take 3d point in picture ref in 2D
+            
+            p_check = self.cameraModel.project3dToPixel(p_c_3D)
+            # normally, norm(p_check - pixD) < 1e-10
+            print("p_check : ", p_check) 
+            
         return p_real_3D
     
     def fromCamRef2caveRef(self,pr3d,current_depthMsg):
-        
+        """
+        Express the coordinates of a pixel on the camera frame into the cave frame.      
+
+        ------
+        Parameters : 
+            
+           pr3d : the coordinates of the pixel on the camera sensor frame : 
+           (depth of pix = X, Y, Z)
+            
+           current_depthMsg : Image Message : ROS message containing the informations
+           about the current depth picture processed (header, stamp, ...)
+            
+        Return : 
+            
+            p_cave : the coordinates of the pixel on the cave frame : 
+            (depth of pix = X, Y, Z)
+                
+        """
         p_cam = PointStamped()
-        #p_cam.header.seq = self.depthPic.header.seq
+
         
         p_cam.header.seq = current_depthMsg.header.seq
         
@@ -104,24 +142,23 @@ class CrackMap():
         p_cam.point.y = pr3d[1]
         p_cam.point.z = pr3d[2]
 
-        #print(p_cam)
-
-
-        
         stamp = rospy.Time.now()
         p_cam.header.stamp = stamp
-        #trans = self.buffer.lookup_transform('map', 'camera_front', current_depthMsg.header.stamp)
-        #self.listener.waitForTransform('/camera_front', '/map', rospy.Time.now(), rospy.Duration(1.0))
+
         p_cave = self.buffer.transform_full(p_cam,'map',  current_depthMsg.header.stamp, 'camera_front')
-        
-        #p_cave = self.listener.transformPoint('/map', p_cam)
-        
-        #print(p_cave)
-        
+
         return p_cave
     
 
     def allPix2world(self):
+        """
+        
+
+        Returns
+        -------
+        None.
+
+        """
         current_depthPic = self.depthPic.copy()
         current_depthMsg = self.depthMsg
         self.cur_PicID = self.PicID
@@ -141,7 +178,7 @@ class CrackMap():
         tst = np.uint8( bin_current_depthPic.copy() )
         
         contours, hierarchy = cv2.findContours(tst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) #[1:]
-
+        
         for i in range (len(contours)):
             cnt = contours[i]
             M = cv2.moments(cnt)
@@ -252,7 +289,6 @@ class CrackMap():
         self.bridge = CvBridge()
         self.PicID = 0
         self.cur_PicID = 0
-        self.CIFrontDepth = None
         self.CIFrontColor = None
         self.depthMsg = None
         self.depthPic = None
@@ -268,7 +304,6 @@ class CrackMap():
         
     # On cree les subscribers pour chaque image : front, left et right, en couleur et profondeur
     
-        self.CIDtopic = rospy.Subscriber("/phantomx/camera_front/depth/camera_info", CamInfoMSG,self.callbackCIFrontDepth)
         self.CIPtopic = rospy.Subscriber("/phantomx/camera_front/color/camera_info", CamInfoMSG,self.callbackCIFrontColor)
         rospy.Subscriber("/phantomx/crack_image", ImageMSG,self.callbackDepthPic)
 
