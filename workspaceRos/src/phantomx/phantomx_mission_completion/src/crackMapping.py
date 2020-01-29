@@ -190,8 +190,11 @@ class CrackMap():
         
         tst = np.uint8( bin_current_depthPic.copy() )
         
-        contours, hierarchy = cv2.findContours(tst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) #[1:]
-        
+        try:
+            contours, hierarchy = cv2.findContours(tst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        except:
+            contours, hierarchy = cv2.findContours(tst, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[1:]
+
         for i in range (len(contours)):
             # for each contour corresponding to a crack, return the barycenter of this crack, and express 
             # it into the cave frame
